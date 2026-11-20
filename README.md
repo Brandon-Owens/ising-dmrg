@@ -31,7 +31,7 @@ uv sync
 uv run pytest -v
 ```
 
-The current suite contains 38 pytest cases. They check complex-state reconstruction, truncation, state-preserving QR moves, input preservation, canonical conditions, independently specified Hamiltonians, local optimization, and agreement with exact ground states for small systems.
+The automated test suite checks complex-state reconstruction, truncation, state-preserving QR moves, input preservation, canonical conditions, independently specified Hamiltonians, energy expectations, local optimization, and agreement with exact ground states for small systems.
 
 Open [the notebook](notebooks/One_Site_DMRG_Ising.ipynb) in VS Code and select the repository's `.venv` Python environment as its kernel. The notebook uses NumPy, Matplotlib, and IPython for its calculations and displays.
 
@@ -42,7 +42,7 @@ Run this in the project environment to solve a four-qubit chain and compare the 
 ```python
 import numpy as np
 
-from ising_dmrg.hamiltonian import ising_hamiltonian, state_diagnostics
+from ising_dmrg.hamiltonian import ising_hamiltonian, eigenstate_metrics
 from ising_dmrg.mps import mps_to_state, random_mps
 from ising_dmrg.solver import run_dmrg
 
@@ -52,11 +52,11 @@ result = run_dmrg(H, initial, max_sweeps=8)
 state = mps_to_state(result["mps"])
 
 exact_values, exact_vectors = np.linalg.eigh(H)
-diagnostics = state_diagnostics(H, state, exact_vectors[:, 0])
+metrics = eigenstate_metrics(H, state, exact_vectors[:, 0])
 
-print(f"Energy error: {diagnostics['energy'] - exact_values[0]:.3e}")
-print(f"Residual: {diagnostics['residual']:.3e}")
-print(f"Fidelity: {diagnostics['fidelity']:.12f}")
+print(f"Energy error: {metrics['energy'] - exact_values[0]:.3e}")
+print(f"Residual: {metrics['residual']:.3e}")
+print(f"Fidelity: {metrics['fidelity']:.12f}")
 print("Sweeps:", result["sweeps"])
 ```
 
