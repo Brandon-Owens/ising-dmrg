@@ -7,7 +7,7 @@ and exact diagonalization.
 import numpy as np
 import pytest
 
-from ising_dmrg.hamiltonian import ising_hamiltonian, energy_expectation, state_diagnostics
+from ising_dmrg.hamiltonian import ising_hamiltonian, energy_expectation, eigenstate_metrics
 from ising_dmrg.mps import assert_mixed_canonical, mps_to_state, random_mps, shift_right
 from ising_dmrg.solver import dmrg_sweep, local_embedding, optimize_site, run_dmrg
 
@@ -88,18 +88,18 @@ def test_full_bond_solver_agrees_with_exact_ground_state(n, cap, seed):
     values, vectors = np.linalg.eigh(H)
     result = run_dmrg(H, random_mps(n, max_bond=cap, seed=seed), max_sweeps=8)
     state = mps_to_state(result["mps"])
-    diagnostics = state_diagnostics(H, state, vectors[:, 0])
+    metrics = eigenstate_metrics(H, state, vectors[:, 0])
 
-    np.testing.assert_allclose(diagnostics["energy"], values[0], atol=1e-9, rtol=0)
-    assert diagnostics["residual"] < 1e-7
-    assert diagnostics["fidelity"] > 1 - 1e-9
+    np.testing.assert_allclose(metrics["energy"], values[0], atol=1e-9, rtol=0)
+    assert metrics["residual"] < 1e-7
+    assert metrics["fidelity"] > 1 - 1e-9
     np.testing.assert_allclose(np.linalg.norm(state), 1, atol=1e-10)
     assert_mixed_canonical(result["mps"], center=0)
     assert len(result["energies"]) == result["sweeps"] + 1
     assert len(result["local_energies"]) == result["sweeps"] * (2 * n - 1)
     assert np.all(np.diff(result["energies"]) <= 1e-9)
     assert np.all(np.diff(result["local_energies"]) <= 1e-9)
-    np.testing.assert_allclose(result["energies"][-1], diagnostics["energy"], atol=1e-10)
+    np.testing.assert_allclose(result["energies"][-1], metrics["energy"], atol=1e-10)
 
 
 @pytest.mark.parametrize("cap", [1, 2, 4])

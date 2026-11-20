@@ -62,28 +62,29 @@ def energy_expectation(H: NDArray, state: ArrayLike) -> float:
     # Form the inner product <psi|H|psi>.
     energy = np.vdot(psi, H_psi)
 
-    # Since H is Hermitian, its eigenvalues are necessarily real,
-    # so the expectation value should be a real number.
-    # Taking .real discards any tiny imaginary component introduced by floating-point arithmetic.
+    # For Hermitian H, the energy expectation is real.
+    # Allow a small imaginary component from numerical error.
+    if abs(energy.imag) > 1e-8:
+        raise ValueError(
+            f"Expected a real energy expectation for Hermitian H; got {energy}."
+            )
+
     return float(energy.real)
 
-# Measures how close the trial state is to an eigenstate and, when an exact ground state is available, compares the two.
-def state_diagnostics(H: NDArray, state: ArrayLike, ground: ArrayLike | None = None) -> dict[str, float]:
-    """Return energy, eigenstate residual, and optional ground-state fidelity."""
+def eigenstate_metrics(H: NDArray, state: ArrayLike, eigenvector_ref: ArrayLike | None = None) -> dict[str, float]:
+    """Return energy, eigenstate residual, and optional fidelity to a reference vector."""
     psi = normalized(state)
     energy = energy_expectation(H, psi)
-
-    # Measure the mismatch H|psi> - E(psi)|psi>, where E(psi) is the energy expectation.
     residual = np.linalg.norm((H @ psi) - (energy * psi))
+    metrics = {"energy": energy, "residual": float(residual)}
 
-    diagnostics = {"energy": energy, "residual": float(residual)}
-
-    if ground is not None:
-        ground_state = normalized(ground)
+    if eigenvector_ref is not None:
+        normalized_ref = normalized(eigenvector_ref)
+        metrics["fidelity"] = float(abs(np.vdot(normalized_ref, psi)) ** 2)
 
         # Squared magnitude of the overlap between normalized states.
         # It is unchanged by an overall phase on either state.
-        fidelity = np.abs(np.vdot(ground_state, psi))**2
-        diagnostics["fidelity"] = float(fidelity)
+        fidelity = np.abs(np.vdot(normalized_ref, psi))**2
+        metrics["fidelity"] = float(fidelity)
 
-    return diagnostics
+    return metrics

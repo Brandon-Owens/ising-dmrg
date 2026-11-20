@@ -7,7 +7,7 @@ import pytest
 from ising_dmrg.hamiltonian import (
     ising_hamiltonian,
     energy_expectation,
-    state_diagnostics,
+    eigenstate_metrics,
 )
 
 
@@ -41,7 +41,7 @@ def test_ground_state_diagnostics_ignore_nonzero_complex_scale():
     H = ising_hamiltonian(2)
     values, vectors = np.linalg.eigh(H)
     ground = vectors[:, 0]
-    diagnostics = state_diagnostics(H, 3j * ground, ground)
+    diagnostics = eigenstate_metrics(H, 3j * ground, ground)
     np.testing.assert_allclose(diagnostics["energy"], values[0], atol=1e-12)
     np.testing.assert_allclose(diagnostics["residual"], 0, atol=1e-12)
     np.testing.assert_allclose(diagnostics["fidelity"], 1, atol=1e-12)
@@ -52,9 +52,22 @@ def test_diagnostics_for_superposition_of_two_energy_eigenstates():
     H = ising_hamiltonian(2)
     values, vectors = np.linalg.eigh(H)
     state = (vectors[:, 0] + 1j * vectors[:, 1]) / np.sqrt(2)
-    diagnostics = state_diagnostics(H, state, vectors[:, 0])
+    diagnostics = eigenstate_metrics(H, state, vectors[:, 0])
     half_gap = (values[1] - values[0]) / 2
 
     np.testing.assert_allclose(diagnostics["energy"], (values[0] + values[1]) / 2)
     np.testing.assert_allclose(diagnostics["residual"], half_gap, atol=1e-12)
     np.testing.assert_allclose(diagnostics["fidelity"], 0.5, atol=1e-12)
+
+
+@pytest.mark.parametrize("imaginary_part", [1e-4, -1e-4])
+def test_energy_expectation_rejects_significant_imaginary_part(imaginary_part):
+    # Deliberately violate Hermiticity to exercise the imaginary-part check.
+    H = np.diag([1 + 1j * imaginary_part, -1])
+    state = np.array([1, 0], dtype=complex)
+
+    with pytest.raises(
+        ValueError,
+        match="Expected a real energy expectation",
+    ):
+        energy_expectation(H, state)

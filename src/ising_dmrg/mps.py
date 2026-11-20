@@ -79,7 +79,6 @@ def state_to_mps(state: ArrayLike, max_bond: int | None = None) -> list[NDArray[
         matrix = remainder.reshape(l_bond_dim * 2, -1)
         u, singular_values, v_dag = np.linalg.svd(matrix, full_matrices=False)
 
-        # Choose how many singular directions to retain, subject to the bond cap.
         if max_bond is None:
             r_bond_dim = len(singular_values)
         else:
@@ -89,7 +88,7 @@ def state_to_mps(state: ArrayLike, max_bond: int | None = None) -> list[NDArray[
         site_tensor = u_kept.reshape(l_bond_dim, 2, r_bond_dim)
         tensors.append(site_tensor)
 
-        # Carry the retained singular-value weights and right singular vectors forward.
+        # Absorb singular values into right singular vectors
         remainder = (np.diag(singular_values[:r_bond_dim]) @ v_dag[:r_bond_dim, :])
         l_bond_dim = r_bond_dim
 
@@ -99,48 +98,41 @@ def state_to_mps(state: ArrayLike, max_bond: int | None = None) -> list[NDArray[
 
 
 def shift_right(tensors: Sequence[NDArray], site: int) -> list[NDArray]:
-    """Move a center site -> site+1 by QR, preserving the state and input.
+    """Move a mixed-canonical center right using QR; preserve state and input.
 
-    With mixed-canonical input centered at site, output is centered at site+1.
-    No normalization or singular-value truncation is performed.
+    Assumes valid open-boundary MPS structure.
     """
-    # Validate site shapes, matching bonds, and dimension-one boundaries.
-    validate_mps(tensors)
-
-    # Check that there is a right neighbor to contract with remainder R after QR decomposition.
     if not 0 <= site < len(tensors) - 1:
         raise ValueError("A right neighbor is required.")
 
     output = copy_mps(tensors)
     l_bond_dim, physical_dim, r_bond_dim = output[site].shape
-    # Group the left-bond and physical indices into matrix rows.
+
+    # Factor M = QR; retain Q and absorb R into the right neighbor.
     matrix = output[site].reshape(l_bond_dim * physical_dim, r_bond_dim)
-
-    # Factor the matrix into an isometry Q and remainder R.
     q, r = np.linalg.qr(matrix, mode="reduced")
-    # Restore Q's site tensor axes. This site is now left-normalized.
     output[site] = q.reshape(l_bond_dim, physical_dim, q.shape[1])
-    # Absorb remainder R into the next site's left bond, preserving the state.
     output[site + 1] = np.tensordot(r, output[site + 1], axes=(1, 0))
-
     return output
 
 
 def shift_left(tensors: Sequence[NDArray], site: int) -> list[NDArray]:
-    """Move a center site -> site-1 by QR of the adjoint; preserve input/state."""
-    validate_mps(tensors)
+    """Move a mixed-canonical center left using QR of the adjoint; preserve state and input.
+
+    Assumes valid open-boundary MPS structure.
+    """
     if not 0 < site < len(tensors):
         raise ValueError("A left neighbor is required.")
+
     output = copy_mps(tensors)
     l_bond_dim, physical_dim, r_bond_dim = output[site].shape
 
-    # Do a similar thing as with shift_right but use adjoints.
+    # Factor M† = QR; retain Q† and absorb R† into the left neighbor.
     matrix = output[site].reshape(l_bond_dim, physical_dim * r_bond_dim)
     q, r = np.linalg.qr(matrix.conj().T, mode="reduced")
     output[site] = q.conj().T.reshape(q.shape[1], physical_dim, r_bond_dim)
     output[site - 1] = np.tensordot(output[site - 1], r.conj().T, axes=(2, 0))
     return output
-
 
 def assert_mixed_canonical(tensors: Sequence[NDArray], center: int, atol: float = 1e-10) -> None:
     """Raise AssertionError unless all tensors outside center are isometries."""
